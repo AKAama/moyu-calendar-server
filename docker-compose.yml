@@ -6,7 +6,9 @@ services:
     container_name: moyu-calendar-server
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3001:3001"   # 只暴露到宿主回环，由 Nginx 反代 /api/
+      # 监听公网，供另一台机器的 Nginx 反代 /api/ 到本机 3001。
+      # 生产建议加防火墙/安全组，仅放行前端机器 IP。
+      - "0.0.0.0:3001:3001"
     env_file:
       - .env
     environment:
