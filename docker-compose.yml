@@ -1,0 +1,24 @@
+# 生产部署用。服务器上放本文件 + .env + AuthKey_*.p8，然后：
+#   REGISTRY_IMAGE=crpi-...aliyuncs.com/project_hub/moyu-calendar-server docker compose pull && docker compose up -d
+services:
+  moyu-calendar-server:
+    image: ${REGISTRY_IMAGE:-crpi-3xux8vqn35fw00z9.cn-shanghai.personal.cr.aliyuncs.com/project_hub/moyu-calendar-server}:latest
+    container_name: moyu-calendar-server
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"   # 只暴露到宿主回环，由 Nginx 反代 /api/
+    env_file:
+      - .env
+    environment:
+      # 覆盖 .env 里的 HOST，容器内必须监听 0.0.0.0
+      HOST: 0.0.0.0
+      PORT: "3001"
+    volumes:
+      # 挂载 WeatherKit 私钥；.env 里 WEATHERKIT_PRIVATE_KEY 填容器内路径 /keys/AuthKey.p8
+      - ./AuthKey_9899TB8DKC.p8:/keys/AuthKey.p8:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
