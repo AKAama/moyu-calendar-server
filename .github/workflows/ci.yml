@@ -66,8 +66,8 @@ jobs:
             set -e
             cd /opt/moyu-calendar-server
             export REGISTRY_IMAGE=crpi-3xux8vqn35fw00z9.cn-shanghai.personal.cr.aliyuncs.com/project_hub/moyu-calendar-server
-            docker-compose pull
-            docker-compose up -d --remove-orphans
+            docker compose pull
+            docker compose up -d --remove-orphans
             docker image prune -f
             sleep 4
             curl -sf -o /dev/null http://127.0.0.1:3001/api/health
