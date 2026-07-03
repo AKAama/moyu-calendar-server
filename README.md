@@ -35,6 +35,8 @@ WEATHERKIT_TEAM_ID=
 WEATHERKIT_KEY_ID=
 WEATHERKIT_SERVICE_ID=
 WEATHERKIT_PRIVATE_KEY=
+DATABASE_PATH=data/moyu-calendar.sqlite
+ADMIN_TOKEN=请替换为随机长字符串
 ```
 
 `WEATHERKIT_PRIVATE_KEY` 是 Apple Developer 下载的 `.p8` 私钥内容，不要提交到 GitHub。
@@ -67,5 +69,11 @@ npm run start
 ## 当前接口
 
 - `GET /api/health`：服务健康检查。
+- `GET /api/calendar?date=2026-07-03`：返回节假日、调休、本月工作日数，以及距离周五和下一个休息日的天数。
 - `GET /api/weather?lat=31.2304&lon=121.4737`：天气接口占位；WeatherKit 凭据未配置时返回 `not_configured`。
-- `POST /api/events`：匿名事件入口；当前只记录日志，后续可接 SQLite/PostgreSQL 做访问日志和排行榜。
+- `POST /api/events`：匿名事件写入 SQLite。
+- `GET /api/admin/events/summary`：事件汇总，需要 `Authorization: Bearer <ADMIN_TOKEN>`。
+- `POST /api/bingo/complete`：保存每日宾果成绩。
+- `GET /api/bingo/leaderboard?date=2026-07-03`：每日宾果排行榜。
+
+SQLite 使用 Node.js 内置模块，因此生产环境需要 Node.js 22.5 或更高版本。数据库目录已加入 `.gitignore`，部署时请单独备份。

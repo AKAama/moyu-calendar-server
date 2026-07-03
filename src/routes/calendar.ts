@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  getDaysToFriday,
   getNextHoliday,
+  getNextRestDay,
+  getMonthlyWorkdayCount,
   holidayName,
   isPublicHoliday,
   isRestDay,
@@ -30,6 +33,8 @@ export async function registerCalendarRoutes(app: FastifyInstance) {
       });
     }
 
+    const nextRestDay = getNextRestDay(date);
+
     return {
       date,
       isWorkday: isWorkday(date),
@@ -37,6 +42,10 @@ export async function registerCalendarRoutes(app: FastifyInstance) {
       isHoliday: isPublicHoliday(date),
       isTransferWorkday: isTransferWorkday(date),
       holidayName: holidayName(date),
+      monthlyWorkdays: getMonthlyWorkdayCount(date),
+      daysToFriday: getDaysToFriday(date),
+      daysToRestDay: nextRestDay.days,
+      nextRestDate: nextRestDay.date,
       nextHoliday: getNextHoliday(date),
     };
   });

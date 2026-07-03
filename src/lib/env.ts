@@ -14,6 +14,8 @@ export interface AppConfig {
   corsOrigin: string;
   weatherKitConfigured: boolean;
   weatherKit: WeatherKitCreds | null;
+  databasePath: string;
+  adminToken: string;
 }
 
 function readPort(value: string | undefined) {
@@ -42,6 +44,8 @@ export function getConfig(): AppConfig {
     host: process.env.HOST ?? '127.0.0.1',
     port: readPort(process.env.PORT),
     corsOrigin: process.env.CORS_ORIGIN ?? 'https://calendar.ismyh.cn',
+    databasePath: process.env.DATABASE_PATH ?? 'data/moyu-calendar.sqlite',
+    adminToken: process.env.ADMIN_TOKEN ?? '',
     weatherKitConfigured,
     weatherKit: weatherKitConfigured
       ? {

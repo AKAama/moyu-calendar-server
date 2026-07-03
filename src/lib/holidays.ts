@@ -13,6 +13,11 @@ export interface NextHoliday extends HolidayRange {
   active: boolean;
 }
 
+export interface RestDayCountdown {
+  date: string;
+  days: number;
+}
+
 // 当日是否在节假日数据中（法定假或补班）。
 export function getDayInfo(dateStr: string): HolidayDate | null {
   return CN_HOLIDAYS_2026.find((item) => item.date === dateStr) ?? null;
@@ -45,9 +50,43 @@ export function isRestDay(dateStr: string): boolean {
   return !isWorkday(dateStr);
 }
 
+export function getMonthlyWorkdayCount(dateStr: string): number {
+  const [year, month] = dateStr.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let count = 0;
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const current = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (isWorkday(current)) count += 1;
+  }
+
+  return count;
+}
+
 function parseDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
+}
+
+function formatDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function getDaysToFriday(dateStr: string): number {
+  return (5 - parseDate(dateStr).getDay() + 7) % 7;
+}
+
+export function getNextRestDay(dateStr: string): RestDayCountdown {
+  const date = parseDate(dateStr);
+
+  for (let days = 0; days <= 14; days += 1) {
+    const candidate = new Date(date);
+    candidate.setDate(date.getDate() + days);
+    const candidateStr = formatDate(candidate);
+    if (isRestDay(candidateStr)) return { date: candidateStr, days };
+  }
+
+  throw new Error(`No rest day found after ${dateStr}`);
 }
 
 // 把连续同名 public_holiday 聚合成假期区间。

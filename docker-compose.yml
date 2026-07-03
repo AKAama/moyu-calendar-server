@@ -18,9 +18,14 @@ services:
     volumes:
       # 挂载 WeatherKit 私钥；.env 里 WEATHERKIT_PRIVATE_KEY 填容器内路径 /keys/AuthKey.p8
       - ./AuthKey_9899TB8DKC.p8:/keys/AuthKey.p8:ro
+      # SQLite 数据独立于容器生命周期，重新部署不会丢失访问日志和排行榜。
+      - moyu_calendar_data:/app/data
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  moyu_calendar_data:

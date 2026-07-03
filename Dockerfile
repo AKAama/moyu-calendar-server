@@ -20,6 +20,7 @@ ENV PORT=3001
 
 # 非 root 用户运行
 RUN addgroup -S app && adduser -S app -G app
+RUN mkdir -p /app/data && chown -R app:app /app/data
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
