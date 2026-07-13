@@ -178,6 +178,70 @@ test('bingo score is saved and returned by daily leaderboard', async () => {
   assert.deepEqual(list.json().entries[0], { displayName: '摸鱼小熊', score: 6, title: '办公室隐身术士' });
 });
 
+test('GET /api/lunch/items returns preset lunch items', async () => {
+  const app = buildApp(testConfig);
+  const response = await app.inject({ method: 'GET', url: '/api/lunch/items' });
+
+  assert.equal(response.statusCode, 200);
+  const items = response.json().items as Array<{ item: string; name: string; source: string }>;
+  assert.ok(items.some((entry) => entry.item === '老乡鸡' && entry.name === '系统饭搭子' && entry.source === 'preset'));
+  assert.ok(items.some((entry) => entry.item === '麦当劳'));
+});
+
+test('POST /api/lunch/items adds a permanent user lunch item', async () => {
+  const app = buildApp(testConfig);
+  const saved = await app.inject({
+    method: 'POST',
+    url: '/api/lunch/items',
+    payload: { item: '  公司楼下盖饭  ', name: '  Alex  ' },
+  });
+
+  assert.equal(saved.statusCode, 201);
+  assert.equal(saved.json().item.item, '公司楼下盖饭');
+  assert.equal(saved.json().item.name, 'Alex');
+  assert.equal(saved.json().item.source, 'user');
+
+  const list = await app.inject({ method: 'GET', url: '/api/lunch/items' });
+  assert.ok(list.json().items.some((entry: { item: string; name: string }) =>
+    entry.item === '公司楼下盖饭' && entry.name === 'Alex'));
+});
+
+test('POST /api/lunch/items rejects invalid input', async () => {
+  const app = buildApp(testConfig);
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/lunch/items',
+    payload: { item: '', name: 'Alex' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error, 'INVALID_LUNCH_ITEM');
+});
+
+test('POST /api/lunch/pick returns one item from the lunch pool', async () => {
+  const app = buildApp(testConfig);
+  const response = await app.inject({ method: 'POST', url: '/api/lunch/pick' });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(typeof response.json().item.item, 'string');
+  assert.equal(typeof response.json().item.name, 'string');
+});
+
+test('POST /api/lunch/pick reaches every lunch item before repeating', async () => {
+  const app = buildApp(testConfig);
+  const list = await app.inject({ method: 'GET', url: '/api/lunch/items' });
+  const total = list.json().items.length;
+  const pickedIds = new Set<number>();
+
+  for (let i = 0; i < total; i += 1) {
+    const response = await app.inject({ method: 'POST', url: '/api/lunch/pick' });
+    assert.equal(response.statusCode, 200);
+    pickedIds.add(response.json().item.id);
+  }
+
+  assert.equal(pickedIds.size, total);
+});
+
 test('event summary requires admin token', async () => {
   const app = buildApp(testConfig);
   const denied = await app.inject({ method: 'GET', url: '/api/admin/events/summary' });

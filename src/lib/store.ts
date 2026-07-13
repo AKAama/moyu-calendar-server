@@ -2,6 +2,18 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+const PRESET_LUNCH_ITEMS = [
+  ['老乡鸡', '系统饭搭子'],
+  ['大米先生', '系统饭搭子'],
+  ['麦当劳', '系统饭搭子'],
+  ['肯德基', '系统饭搭子'],
+  ['麻辣烫', '系统饭搭子'],
+  ['黄焖鸡', '系统饭搭子'],
+  ['兰州拉面', '系统饭搭子'],
+  ['沙县小吃', '系统饭搭子'],
+  ['便利店饭团', '系统饭搭子'],
+] as const;
+
 export class DataStore {
   private db: DatabaseSync;
 
@@ -18,7 +30,30 @@ export class DataStore {
         score INTEGER NOT NULL, title TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (date, visitor_id)
       );
+      CREATE TABLE IF NOT EXISTS lunch_items (
+        id INTEGER PRIMARY KEY,
+        item TEXT NOT NULL,
+        name TEXT NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('preset', 'user')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS lunch_pick_queue (
+        item_id INTEGER PRIMARY KEY,
+        queue_order INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(item_id) REFERENCES lunch_items(id) ON DELETE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS lunch_items_preset_item_idx
+        ON lunch_items(item) WHERE source = 'preset';
     `);
+    this.seedLunchItems();
+  }
+
+  private seedLunchItems() {
+    const insert = this.db.prepare('INSERT OR IGNORE INTO lunch_items (item, name, source) VALUES (?, ?, ?)');
+    for (const [item, name] of PRESET_LUNCH_ITEMS) {
+      insert.run(item, name, 'preset');
+    }
   }
 
   addEvent(type: string, visitorId: string | null, payload: unknown, userAgent: string | null) {
@@ -38,6 +73,52 @@ export class DataStore {
   leaderboard(date: string) {
     return this.db.prepare(`SELECT display_name AS displayName, score, title
       FROM bingo_scores WHERE date=? ORDER BY score DESC, updated_at ASC LIMIT 20`).all(date);
+  }
+
+  listLunchItems() {
+    return this.db.prepare(`SELECT id, item, name, source, created_at AS createdAt
+      FROM lunch_items ORDER BY id ASC`).all();
+  }
+
+  addLunchItem(item: string, name: string) {
+    const result = this.db.prepare('INSERT INTO lunch_items (item, name, source) VALUES (?, ?, ?)')
+      .run(item, name, 'user');
+    return this.db.prepare(`SELECT id, item, name, source, created_at AS createdAt
+      FROM lunch_items WHERE id=?`).get(result.lastInsertRowid);
+  }
+
+  private refillLunchPickQueue() {
+    const ids = this.db.prepare('SELECT id FROM lunch_items ORDER BY id ASC').all() as Array<{ id: number }>;
+    const shuffled = [...ids];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    this.db.exec('DELETE FROM lunch_pick_queue');
+    const insert = this.db.prepare('INSERT INTO lunch_pick_queue (item_id, queue_order) VALUES (?, ?)');
+    shuffled.forEach((entry, index) => insert.run(entry.id, index));
+  }
+
+  private nextQueuedLunchItem() {
+    return this.db.prepare(`SELECT lunch_items.id, lunch_items.item, lunch_items.name,
+        lunch_items.source, lunch_items.created_at AS createdAt
+      FROM lunch_pick_queue
+      JOIN lunch_items ON lunch_items.id = lunch_pick_queue.item_id
+      ORDER BY lunch_pick_queue.queue_order ASC
+      LIMIT 1`).get();
+  }
+
+  pickLunchItem() {
+    let item = this.nextQueuedLunchItem();
+    if (!item) {
+      this.refillLunchPickQueue();
+      item = this.nextQueuedLunchItem();
+    }
+    if (!item) return null;
+
+    this.db.prepare('DELETE FROM lunch_pick_queue WHERE item_id=?').run((item as { id: number }).id);
+    return item;
   }
 
   eventSummary() {

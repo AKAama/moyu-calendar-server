@@ -6,6 +6,7 @@ import { registerBingoRoutes } from './routes/bingo.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerLunchRoutes } from './routes/lunch.js';
 import { registerWeatherRoutes } from './routes/weather.js';
 
 export function buildApp(config = getConfig()) {
@@ -23,6 +24,7 @@ export function buildApp(config = getConfig()) {
   void app.register(registerWeatherRoutes, config);
   void app.register(registerEventRoutes, { store, adminToken: config.adminToken });
   void app.register(registerBingoRoutes, store);
+  void app.register(registerLunchRoutes, store);
 
   return app;
 }

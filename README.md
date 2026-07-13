@@ -1,6 +1,6 @@
 # 摸鱼日历后端
 
-这是摸鱼日历的 Fastify 后端底座，用来承接后续 WeatherKit、匿名访问事件、宾果排行榜等需要服务端能力的功能。
+这是摸鱼日历的 Fastify 后端底座，用来承接 WeatherKit、匿名访问事件、宾果排行榜、公共午饭盒等需要服务端能力的功能。
 
 ## 本地开发
 
@@ -75,5 +75,8 @@ npm run start
 - `GET /api/admin/events/summary`：事件汇总，需要 `Authorization: Bearer <ADMIN_TOKEN>`。
 - `POST /api/bingo/complete`：保存每日宾果成绩。
 - `GET /api/bingo/leaderboard?date=2026-07-03`：每日宾果排行榜。
+- `GET /api/lunch/items`：返回公共午饭盒列表，包含预置饭和用户投喂的饭。
+- `POST /api/lunch/items`：新增午饭盒条目，请求体为 `{ "item": "老乡鸡", "name": "Alex" }`。
+- `POST /api/lunch/pick`：从公共午饭盒抽取一条午饭建议；使用“洗牌袋”机制，一轮内每个条目都会被抽到且不会重复。
 
 SQLite 使用 Node.js 内置模块，因此生产环境需要 Node.js 22.5 或更高版本。数据库目录已加入 `.gitignore`，部署时请单独备份。
