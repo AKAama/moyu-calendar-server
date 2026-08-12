@@ -24,7 +24,7 @@ export function buildApp(config = getConfig()) {
   void app.register(registerWeatherRoutes, config);
   void app.register(registerEventRoutes, { store, adminToken: config.adminToken });
   void app.register(registerBingoRoutes, store);
-  void app.register(registerLunchRoutes, store);
+  void app.register(registerLunchRoutes, { store, config });
 
   return app;
 }

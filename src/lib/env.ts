@@ -16,6 +16,12 @@ export interface AppConfig {
   weatherKit: WeatherKitCreds | null;
   databasePath: string;
   adminToken: string;
+  contentReview: {
+    enabled: string;
+    deepseekApiKey: string;
+    deepseekBaseUrl: string;
+    deepseekModel: string;
+  };
 }
 
 function readPort(value: string | undefined) {
@@ -46,6 +52,12 @@ export function getConfig(): AppConfig {
     corsOrigin: process.env.CORS_ORIGIN ?? 'https://calendar.ismyh.cn',
     databasePath: process.env.DATABASE_PATH ?? 'data/moyu-calendar.sqlite',
     adminToken: process.env.ADMIN_TOKEN ?? '',
+    contentReview: {
+      enabled: process.env.CONTENT_REVIEW_ENABLED ?? 'false',
+      deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? '',
+      deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com',
+      deepseekModel: process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash',
+    },
     weatherKitConfigured,
     weatherKit: weatherKitConfigured
       ? {

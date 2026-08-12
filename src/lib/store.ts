@@ -1,6 +1,7 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import type { ContentBlocklistRule } from './content-safety.js';
 
 const PRESET_LUNCH_ITEMS = [
   ['老乡鸡', '系统饭搭子'],
@@ -13,6 +14,17 @@ const PRESET_LUNCH_ITEMS = [
   ['沙县小吃', '系统饭搭子'],
   ['便利店饭团', '系统饭搭子'],
 ] as const;
+
+interface ContentBlocklistSeedEntry {
+  pattern: string;
+  patternType: 'exact' | 'contains' | 'regex';
+  category: string;
+}
+
+function loadContentBlocklistSeed(): ContentBlocklistSeedEntry[] {
+  const seedUrl = new URL('../data/content-blocklist.seed.json', import.meta.url);
+  return JSON.parse(readFileSync(seedUrl, 'utf8')) as ContentBlocklistSeedEntry[];
+}
 
 export class DataStore {
   private db: DatabaseSync;
@@ -43,16 +55,35 @@ export class DataStore {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(item_id) REFERENCES lunch_items(id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS content_blocklist (
+        id INTEGER PRIMARY KEY,
+        pattern TEXT NOT NULL,
+        pattern_type TEXT NOT NULL CHECK(pattern_type IN ('exact', 'contains', 'regex')),
+        category TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'preset',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(pattern, pattern_type, category)
+      );
       CREATE UNIQUE INDEX IF NOT EXISTS lunch_items_preset_item_idx
         ON lunch_items(item) WHERE source = 'preset';
     `);
     this.seedLunchItems();
+    this.seedContentBlocklist();
   }
 
   private seedLunchItems() {
     const insert = this.db.prepare('INSERT OR IGNORE INTO lunch_items (item, name, source) VALUES (?, ?, ?)');
     for (const [item, name] of PRESET_LUNCH_ITEMS) {
       insert.run(item, name, 'preset');
+    }
+  }
+
+  private seedContentBlocklist() {
+    const insert = this.db.prepare(`INSERT OR IGNORE INTO content_blocklist
+      (pattern, pattern_type, category, source, enabled) VALUES (?, ?, ?, ?, ?)`);
+    for (const entry of loadContentBlocklistSeed()) {
+      insert.run(entry.pattern, entry.patternType, entry.category, 'preset', 1);
     }
   }
 
@@ -85,6 +116,17 @@ export class DataStore {
       .run(item, name, 'user');
     return this.db.prepare(`SELECT id, item, name, source, created_at AS createdAt
       FROM lunch_items WHERE id=?`).get(result.lastInsertRowid);
+  }
+
+  listEnabledContentBlocklistRules() {
+    return this.db.prepare(`SELECT id, pattern, pattern_type AS patternType, category
+      FROM content_blocklist WHERE enabled=1 ORDER BY id ASC`).all() as unknown as ContentBlocklistRule[];
+  }
+
+  addContentBlocklistRule(pattern: string, category: string, source = 'llm') {
+    this.db.prepare(`INSERT OR IGNORE INTO content_blocklist
+      (pattern, pattern_type, category, source, enabled) VALUES (?, ?, ?, ?, ?)`)
+      .run(pattern, 'exact', category, source, 1);
   }
 
   private refillLunchPickQueue() {

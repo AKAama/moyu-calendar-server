@@ -37,9 +37,19 @@ WEATHERKIT_SERVICE_ID=
 WEATHERKIT_PRIVATE_KEY=
 DATABASE_PATH=data/moyu-calendar.sqlite
 ADMIN_TOKEN=请替换为随机长字符串
+
+# 午饭盒内容审核：先走 SQLite 词库，词库通过后可选用 DeepSeek 复审。
+CONTENT_REVIEW_ENABLED=false
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 `WEATHERKIT_PRIVATE_KEY` 是 Apple Developer 下载的 `.p8` 私钥内容，不要提交到 GitHub。
+
+`CONTENT_REVIEW_ENABLED=true` 且配置 `DEEPSEEK_API_KEY` 后，用户投喂午饭会先经过 SQLite 词库拦截；词库通过后，再调用 DeepSeek JSON 模式复审。未开启时只使用本地词库，不会触网。
+
+词库会在启动时从 `src/data/content-blocklist.seed.json` 初始化到 SQLite 的 `content_blocklist` 表。实际审核读取的是 SQLite 表，后续可以直接在数据库中维护词库。
 
 ## 生产部署建议
 

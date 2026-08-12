@@ -8,9 +8,66 @@ const unconfiguredConfig = {
   ...getConfig(), databasePath: ':memory:', adminToken: 'test-token',
   weatherKitConfigured: false,
   weatherKit: null,
+  contentReview: {
+    enabled: 'false',
+    deepseekApiKey: '',
+    deepseekBaseUrl: 'https://api.deepseek.com',
+    deepseekModel: 'deepseek-v4-flash',
+  },
 };
 
-const testConfig = { ...getConfig(), databasePath: ':memory:', adminToken: 'test-token' };
+const testConfig = {
+  ...getConfig(),
+  databasePath: ':memory:',
+  adminToken: 'test-token',
+  contentReview: {
+    enabled: 'false',
+    deepseekApiKey: '',
+    deepseekBaseUrl: 'https://api.deepseek.com',
+    deepseekModel: 'deepseek-v4-flash',
+  },
+};
+
+function createContentReviewConfig(safe: boolean) {
+  void safe;
+  return {
+    ...testConfig,
+    contentReview: {
+      enabled: 'true',
+      deepseekApiKey: 'test-key',
+      deepseekBaseUrl: 'https://api.deepseek.test',
+      deepseekModel: 'deepseek-v4-flash',
+    },
+  };
+}
+
+function mockDeepSeekReview(result: { safe: boolean; category: string; reason: string; unsafeFields?: string[] }) {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+
+  globalThis.fetch = (async () => {
+    called = true;
+    return new Response(JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify(result),
+          },
+        },
+      ],
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as typeof fetch;
+
+  return {
+    wasCalled: () => called,
+    restore: () => {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
 
 test('GET /api/health returns service status', async () => {
   const app = buildApp(testConfig);
@@ -216,6 +273,146 @@ test('POST /api/lunch/items rejects invalid input', async () => {
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.json().error, 'INVALID_LUNCH_ITEM');
+});
+
+test('POST /api/lunch/items rejects unsafe content', async () => {
+  const app = buildApp(testConfig);
+  const examples = [
+    { item: '成人视频套餐', name: 'Alex' },
+    { item: '我要砍人套餐', name: 'Alex' },
+    { item: '麻辣烫', name: '加微信vx123456' },
+    { item: '<script>alert(1)</script>', name: 'Alex' },
+    { item: 'https://spam.example', name: 'Alex' },
+  ];
+
+  for (const payload of examples) {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload,
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'UNSAFE_LUNCH_CONTENT');
+  }
+});
+
+test('POST /api/lunch/items reviews content with DeepSeek after blocklist passes', async () => {
+  const mock = mockDeepSeekReview({ safe: false, category: 'spam', reason: '广告引流变体', unsafeFields: ['item'] });
+
+  try {
+    const app = buildApp(createContentReviewConfig(false));
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload: { item: '神秘快乐套餐', name: '路人甲' },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'UNSAFE_LUNCH_CONTENT');
+    assert.equal(mock.wasCalled(), true);
+  } finally {
+    mock.restore();
+  }
+});
+
+test('POST /api/lunch/items stores LLM rejected content in blocklist', async () => {
+  const firstMock = mockDeepSeekReview({
+    safe: false,
+    category: 'spam',
+    reason: '广告引流变体',
+    unsafeFields: ['item'],
+  });
+
+  const app = buildApp(createContentReviewConfig(false));
+
+  try {
+    const firstResponse = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload: { item: '神秘暗号套餐', name: '路人甲' },
+    });
+
+    assert.equal(firstResponse.statusCode, 400);
+    assert.equal(firstMock.wasCalled(), true);
+  } finally {
+    firstMock.restore();
+  }
+
+  const secondMock = mockDeepSeekReview({ safe: true, category: 'normal', reason: '普通内容', unsafeFields: [] });
+
+  try {
+    const secondResponse = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload: { item: '神秘暗号套餐', name: '另一个人' },
+    });
+
+    assert.equal(secondResponse.statusCode, 400);
+    assert.equal(secondResponse.json().error, 'UNSAFE_LUNCH_CONTENT');
+    assert.equal(secondMock.wasCalled(), false);
+  } finally {
+    secondMock.restore();
+  }
+});
+
+test('POST /api/lunch/items stores LLM rejected name in blocklist', async () => {
+  const firstMock = mockDeepSeekReview({
+    safe: false,
+    category: 'abuse',
+    reason: '姓名包含不适合公开展示的内容',
+    unsafeFields: ['name'],
+  });
+
+  const app = buildApp(createContentReviewConfig(false));
+
+  try {
+    const firstResponse = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload: { item: '普通盖饭', name: '奇怪捣乱昵称' },
+    });
+
+    assert.equal(firstResponse.statusCode, 400);
+    assert.equal(firstMock.wasCalled(), true);
+  } finally {
+    firstMock.restore();
+  }
+
+  const secondMock = mockDeepSeekReview({ safe: true, category: 'normal', reason: '普通内容', unsafeFields: [] });
+
+  try {
+    const secondResponse = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload: { item: '另一份普通盖饭', name: '奇怪捣乱昵称' },
+    });
+
+    assert.equal(secondResponse.statusCode, 400);
+    assert.equal(secondResponse.json().error, 'UNSAFE_LUNCH_CONTENT');
+    assert.equal(secondMock.wasCalled(), false);
+  } finally {
+    secondMock.restore();
+  }
+});
+
+test('POST /api/lunch/items skips DeepSeek when blocklist rejects first', async () => {
+  const mock = mockDeepSeekReview({ safe: true, category: 'normal', reason: '普通内容', unsafeFields: [] });
+
+  try {
+    const app = buildApp(createContentReviewConfig(true));
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lunch/items',
+      payload: { item: 'https://spam.example', name: '路人甲' },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'UNSAFE_LUNCH_CONTENT');
+    assert.equal(mock.wasCalled(), false);
+  } finally {
+    mock.restore();
+  }
 });
 
 test('POST /api/lunch/pick returns one item from the lunch pool', async () => {
