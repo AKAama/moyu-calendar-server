@@ -30,7 +30,7 @@ function buildPrompt(fields: ContentField[]) {
   const payload = Object.fromEntries(fields.map((field) => [field.label, field.value]));
   return `请审核下面用户提交给“午饭盒”的内容是否适合公开展示和入库。它应该是普通饭名和普通用户姓名。
 
-判定为不安全的情况包括：色情、暴力威胁、自伤、赌博、广告引流、辱骂骚扰、违法内容、恶意绕过、明显垃圾内容。
+判定为不安全的情况包括：色情、暴力威胁、自伤、赌博、广告引流、辱骂骚扰、违法内容、恶意绕过、无意义（例如 111，222，qwe）、明显垃圾内容。
 正常菜名、玩笑式但无害的饭名、普通昵称应判定为安全。
 
 请只输出 json，不要输出解释文本。JSON 格式：
