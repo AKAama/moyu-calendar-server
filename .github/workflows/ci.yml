@@ -52,6 +52,10 @@ jobs:
         with:
           context: .
           push: true
+          # 阿里云个人版 ACR 不接受 Buildx 默认附带的 provenance 清单
+          # （application/vnd.oci.empty.v1+json），推送会被拒绝。
+          provenance: false
+          sbom: false
           tags: |
             crpi-3xux8vqn35fw00z9.cn-shanghai.personal.cr.aliyuncs.com/project_hub/moyu-calendar-server:latest
             crpi-3xux8vqn35fw00z9.cn-shanghai.personal.cr.aliyuncs.com/project_hub/moyu-calendar-server:${{ github.sha }}
