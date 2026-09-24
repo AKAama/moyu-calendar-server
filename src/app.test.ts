@@ -195,6 +195,57 @@ test('GET /api/calendar flags the first day of a public holiday', async () => {
   assert.equal(body.nextHoliday.days, 0);
 });
 
+test('GET /api/calendar marks the workday before a public holiday as holiday eve', async () => {
+  const app = buildApp(testConfig);
+
+  const midAutumnEve = await app.inject({
+    method: 'GET',
+    url: '/api/calendar?date=2026-09-24',
+  });
+  assert.equal(midAutumnEve.statusCode, 200);
+  assert.equal(midAutumnEve.json().isWorkday, true);
+  assert.equal(midAutumnEve.json().holidayEveName, '中秋节');
+
+  const nationalDayEve = await app.inject({
+    method: 'GET',
+    url: '/api/calendar?date=2026-09-30',
+  });
+  assert.equal(nationalDayEve.json().holidayEveName, '国庆节');
+
+  // 2026-02-14 是周六春节补班，第二天就是春节。
+  const springFestivalEve = await app.inject({
+    method: 'GET',
+    url: '/api/calendar?date=2026-02-14',
+  });
+  assert.equal(springFestivalEve.json().isWorkday, true);
+  assert.equal(springFestivalEve.json().isTransferWorkday, true);
+  assert.equal(springFestivalEve.json().holidayEveName, '春节');
+});
+
+test('GET /api/calendar does not treat an ordinary day or an ongoing holiday as holiday eve', async () => {
+  const app = buildApp(testConfig);
+
+  const dayBeforeEve = await app.inject({
+    method: 'GET',
+    url: '/api/calendar?date=2026-09-23',
+  });
+  assert.equal(dayBeforeEve.json().holidayEveName, null);
+
+  const holidayFirstDay = await app.inject({
+    method: 'GET',
+    url: '/api/calendar?date=2026-09-25',
+  });
+  assert.equal(holidayFirstDay.json().isHoliday, true);
+  assert.equal(holidayFirstDay.json().holidayEveName, null);
+
+  const beforeTransferWorkday = await app.inject({
+    method: 'GET',
+    url: '/api/calendar?date=2026-01-03',
+  });
+  // 次日是元旦补班，不是法定假日开始。
+  assert.equal(beforeTransferWorkday.json().holidayEveName, null);
+});
+
 test('GET /api/calendar rejects malformed dates', async () => {
   const app = buildApp(testConfig);
   const response = await app.inject({

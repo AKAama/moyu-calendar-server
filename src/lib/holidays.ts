@@ -37,6 +37,18 @@ export function holidayName(dateStr: string): string | null {
   return null;
 }
 
+// 法定节假日区间开始的前一天。假期进行中返回 null，避免长假第二天仍被当成「节前」。
+export function holidayEveName(dateStr: string): string | null {
+  const tomorrow = parseDate(dateStr);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowInfo = getDayInfo(formatDate(tomorrow));
+  if (tomorrowInfo?.type !== 'public_holiday') return null;
+
+  const todayInfo = getDayInfo(dateStr);
+  if (todayInfo?.type === 'public_holiday' && todayInfo.name === tomorrowInfo.name) return null;
+  return tomorrowInfo.name;
+}
+
 // 是否工作日：补班→是；法定假→否；其余按周一~五是、周末否。
 export function isWorkday(dateStr: string): boolean {
   if (isTransferWorkday(dateStr)) return true;
